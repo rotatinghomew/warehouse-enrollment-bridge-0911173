@@ -2,9 +2,16 @@ from .intake import snapshot, transaction
 from .storage import atomic, records
 
 
+def _no_active_handoff(database):
+    if database.execute(
+            "SELECT 1 FROM snapshot_handoff WHERE status='receiving' LIMIT 1").fetchone():
+        raise ValueError("快照交接进行中，整体快照入口不能交错接入")
+
+
 def import_snapshot(database, document):
     rows, checksum = snapshot(document)
     with atomic(database):
+        _no_active_handoff(database)
         prior = database.execute("SELECT checksum FROM snapshots WHERE name=?", (document['snapshot_id'],)).fetchone()
         if prior:
             if prior[0] != checksum:
@@ -20,6 +27,7 @@ def import_snapshot(database, document):
 def import_transaction(database, document):
     changes, checksum = transaction(document)
     with atomic(database):
+        _no_active_handoff(database)
         previous = database.execute("SELECT checksum FROM transactions WHERE name=?", (document['transaction_id'],)).fetchone()
         if previous:
             if previous[0] != checksum:

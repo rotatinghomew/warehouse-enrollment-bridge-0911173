@@ -6,11 +6,14 @@
 
 快照入口接收完整的一致性全量，其cut表示全量已经包含的源端日志位置。事务入口接收已完整组装的一个事务，position为连续整数，changes按源事务内顺序执行。报名键是enrollment_id，active才计入地区人数。单次快照导入会替换当前副本，独立快照导入不能与另一个接入过程交错。公开代次保存位点、明细文件与汇总。
 
+不停机交接另走连续入口：先登记带全部分片标识和摘要的快照清单，分片经校验暂存、齐全后原子切换；事务拆片独立到达，切点以内的已闭合事务被快照取代不重放，切点以后按position连续应用，缺片或日志缺口期间下游保持上一份完整事实。`Lake.ingestion_status()`可查当前可见位点与所有等待中的输入，详见`docs/data-contract.md`。
+
 ## 代码职责
 
-- `enrolllake/intake.py`：完整快照与事务的数据契约。
-- `enrolllake/replica.py`：报名副本与连续源位点。
-- `enrolllake/lake.py`：列式事实和地区汇总代次。
+- `enrolllake/intake.py`：完整快照、快照清单/分片、完整事务与事务片的数据契约。
+- `enrolllake/replica.py`：报名副本与连续源位点（离线整体入口）。
+- `enrolllake/handoff.py`：分片快照与事务片的不停机连续交接、切点推进与接入状态。
+- `enrolllake/lake.py`：列式事实和地区汇总代次，以及交接入口的对外封装。
 - `enrolllake/storage.py`：本地事务、内容摘要和查询工具。
 
 ## 安装与运行
